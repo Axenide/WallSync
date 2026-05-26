@@ -13,7 +13,7 @@ Add WallSync to your NvChad Lazy specs, for example in `lua/plugins/init.lua`:
 ```lua
 return {
   {
-    "Axenide/WallSync",
+    "NvChad/WallSync",
     lazy = false,
     main = "wallsync",
     opts = {},
@@ -35,7 +35,7 @@ The default setup is enough for a standard NvChad installation. You can override
 
 ```lua
 {
-  "Axenide/WallSync",
+  "NvChad/WallSync",
   lazy = false,
   main = "wallsync",
   opts = {
