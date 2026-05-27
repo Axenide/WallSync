@@ -27,7 +27,7 @@ Then select the `chadwal` theme in your NvChad config and generate your colors a
 wal -i <image>
 ```
 
-WallSync installs the Pywal templates automatically, watches `~/.cache/wal/base46-dark.lua` and `~/.cache/wal/base46-light.lua`, copies the active theme to NvChad's `base46/themes/chadwal.lua`, and reloads NvChad when the generated theme changes.
+WallSync installs the Pywal templates automatically, watches `~/.cache/wal/base46-dark.lua`, `~/.cache/wal/base46-light.lua`, and `~/.cache/wal/colors`, copies the active theme to NvChad's `base46/themes/chadwal.lua`, and reloads NvChad when the generated theme changes.
 
 ### Configuration
 
@@ -43,6 +43,8 @@ The default setup is enough for a standard NvChad installation. You can override
     auto_install_templates = true,
     notify = true,
     debounce_ms = 500,
+    -- Optional: force "dark" or "light" if your generator does not update ~/.cache/wal/colors.
+    mode = nil,
   },
 }
 ```
@@ -99,6 +101,18 @@ blend = true
 color = "#FFFFFF"
 blend = true
 ```
+
+The `[templates.pywal]` entry is required even when using Matugen: WallSync
+watches `~/.cache/wal/colors` and uses its first color to detect whether the
+active generated theme is dark or light. If that file is missing or stale from a
+previous Pywal run, WallSync may select an old `base46-light.lua` or
+`base46-dark.lua` cache file. If you prefer to manage the mode yourself, set
+`opts.mode` to `"dark"`, `"light"`, or a function that returns one of those
+values.
+
+The Matugen template also writes NvChad's `M.type` from Matugen's `{{ mode }}`
+value, so the generated Base46 theme carries the same dark/light mode that
+Matugen used for the color scheme.
 
 If your Lazy install path or repository directory name is different, update the three `input_path` values accordingly. Then generate your theme again:
 
