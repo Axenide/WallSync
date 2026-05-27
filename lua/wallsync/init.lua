@@ -9,6 +9,7 @@ local defaults = {
   debounce_ms = 500,
   stability_timeout_ms = 2000,
   stability_interval_ms = 100,
+  mode = nil,
   templates = {
     dark = "templates/dark.lua",
     light = "templates/light.lua",
@@ -32,6 +33,7 @@ local defaults = {
 local state = {
   config = vim.deepcopy(defaults),
   processing = false,
+  resync_requested = false,
   last_hash = nil,
   watchers = {},
   debounce_timer = nil,
@@ -115,7 +117,33 @@ local function is_dark(hex_color)
   return ((red * 299 + green * 587 + blue * 114) / 1000) < 128
 end
 
+local function normalize_mode(mode)
+  if mode == "dark" or mode == "light" then
+    return mode
+  end
+
+  return nil
+end
+
+local function configured_mode()
+  if type(state.config.mode) == "function" then
+    local ok, mode = pcall(state.config.mode)
+    if ok then
+      return normalize_mode(mode)
+    end
+
+    return nil
+  end
+
+  return normalize_mode(state.config.mode)
+end
+
 local function current_mode()
+  local mode = configured_mode()
+  if mode then
+    return mode
+  end
+
   local content = read_file(state.config.colors_file)
   local first_color = content and content:match "([^\r\n]+)"
   if not first_color then
@@ -123,6 +151,18 @@ local function current_mode()
   end
 
   return is_dark(first_color) and "dark" or "light"
+end
+
+local function is_watched_file(filename)
+  if filename == nil then
+    return true
+  end
+
+  if filename == "base46-dark.lua" or filename == "base46-light.lua" then
+    return true
+  end
+
+  return filename == vim.fn.fnamemodify(state.config.colors_file, ":t")
 end
 
 local function wait_for_stability(path, done)
@@ -151,6 +191,8 @@ local function wait_for_stability(path, done)
   vim.defer_fn(check, interval)
 end
 
+local schedule_sync
+
 function M.install_templates()
   local root = plugin_root()
   local installed = true
@@ -172,10 +214,20 @@ end
 
 function M.sync()
   if state.processing then
+    state.resync_requested = true
     return
   end
 
   state.processing = true
+  state.resync_requested = false
+
+  local function finish_processing()
+    state.processing = false
+    if state.resync_requested then
+      state.resync_requested = false
+      schedule_sync()
+    end
+  end
 
   if state.config.auto_install_templates then
     M.install_templates()
@@ -189,13 +241,13 @@ function M.sync()
   wait_for_stability(source, function(ok)
     if not ok then
       notify("Theme cache is not available: " .. source, vim.log.levels.WARN)
-      state.processing = false
+      finish_processing()
       return
     end
 
     local current_hash = file_hash(source)
     if current_hash and current_hash == state.last_hash then
-      state.processing = false
+      finish_processing()
       return
     end
 
@@ -207,11 +259,11 @@ function M.sync()
       notify("Could not copy theme to " .. state.config.theme_output, vim.log.levels.WARN)
     end
 
-    state.processing = false
+    finish_processing()
   end)
 end
 
-local function schedule_sync()
+schedule_sync = function()
   if state.debounce_timer then
     state.debounce_timer:stop()
   else
@@ -232,6 +284,7 @@ function M.start()
   for _, path in pairs(state.config.cache) do
     watched_dirs[vim.fn.fnamemodify(path, ":h")] = true
   end
+  watched_dirs[vim.fn.fnamemodify(state.config.colors_file, ":h")] = true
 
   for dir in pairs(watched_dirs) do
     vim.fn.mkdir(dir, "p")
@@ -239,7 +292,7 @@ function M.start()
     local watcher = uv.new_fs_event()
     if watcher then
       watcher:start(dir, {}, function(_, filename)
-        if filename == nil or filename == "base46-dark.lua" or filename == "base46-light.lua" then
+        if is_watched_file(filename) then
           schedule_sync()
         end
       end)
