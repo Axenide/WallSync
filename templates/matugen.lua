@@ -54,7 +54,7 @@ M.base_16 = {
   base0F = "{{colors.inverse_surface.default.hex}}",
 }
 
-M.type = "dark"
+M.type = "{{mode}}"
 
 M.polish_hl = {
   defaults = {
